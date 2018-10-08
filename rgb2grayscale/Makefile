@@ -17,8 +17,6 @@ CCFLAGS        := `pkg-config --cflags opencv`
 # OpenCV Linker FLAG
 LDFLAGS        := `pkg-config --libs opencv`
 
-EXEC           := @echo "[@]"
-
 #####################################################################
 
 all: build
@@ -26,10 +24,10 @@ all: build
 build: rgb2grayscale
 
 rgb2grayscale.o: rgb2grayscale.cu
-	$(EXEC) $(NVCC) $(CCFLAGS) -o $@ -c $<
+	$(NVCC) $(CCFLAGS) -o $@ -c $<
 
 rgb2grayscale: rgb2grayscale.o
-	$(EXEC) $(NVCC) $(LDFLAGS) -o $@ $+
+	$(NVCC) $(LDFLAGS) -o $@ $+
 
 clean:
 	rm -f rgb2grayscale.o rgb2grayscale
