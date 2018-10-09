@@ -12,6 +12,19 @@
 #include <cuda.h>
 
 
+__global__ void rgb2gray(const unsigned char* const rgbImage,
+                         unsigned char* const greyImage, 
+                         const int size) {
+
+  for(int oIdx = blockIdx.x*blockDim.x + threadIdx.x;
+      oIdx < size;
+      oIdx += blockDim.x*gridDim.x)
+  {
+    int iIdx = 3 * oIdx;
+    greyImage[oIdx] = (unsigned char) .114f * rgbImage[iIdx+0] + .587f * rgbImage[iIdx+1] + .299f * rgbImage[iIdx+2];
+  }
+}
+
 int main(int argc, char** argv) {
 
   // Arguments
@@ -34,45 +47,44 @@ int main(int argc, char** argv) {
   int width    = image.cols;
   int channels = image.channels();
 
-  std::cout << "Height: "   << height   << std::endl;
-  std::cout << "Width: "    << width    << std::endl;
-  std::cout << "Channels: " << channels << std::endl;
+  cv::Mat output(height, width, CV_8UC1, cv::Scalar(0));
 
   // Display original image
   cv::namedWindow("Original", cv::WINDOW_AUTOSIZE);
   cv::imshow("Original", image);
   cv::waitKey(0);
 
-  // Declare and allocate uchar4 host and device memory buffers
-  uchar4 *h_image;
-  uchar4 *d_image;
-
   cudaError_t error;
 
-  // uchar4 host image allocator
-  h_image = (uchar4 *) malloc(height*width*sizeof(uchar4));
+  unsigned char* rgb_image;
+  unsigned char* gray_image;
 
-  if(!h_image)
-  {
-    std::cout << "Unable to allocate memory" << std::endl;
-  }
+  // device rgb input image allocator
+  error = cudaMalloc((void **) &rgb_image, height*width*channels*sizeof(unsigned char));
 
-  // uchar4 device image allocator
-  error = cudaMalloc((void **) &d_image, height*width*sizeof(uchar4));
+  // device grayscale output image allocator
+  error = cudaMalloc((void **) &gray_image, height*width*sizeof(unsigned char));
 
   if(error != cudaSuccess) 
   {
     printf("cudaMalloc returned error %s (code %d) (line %d)\n", cudaGetErrorString(error), error, __LINE__);
   }
 
-  for(size_t i=0; i<height*width; i++) {
-    unsigned char *pixel = image.data + 3*i;
-    h_image[i]           = make_uchar4(pixel[0], pixel[1], pixel[2], 0);
-  }
   // Copy host image buffer to device
-  cudaMemcpy(d_image, h_image, height*width*sizeof(uchar4), cudaMemcpyHostToDevice);
+  cudaMemcpy(rgb_image, image.data, height*width*channels*sizeof(unsigned char), cudaMemcpyHostToDevice);
 
-  free(h_image);
-  cudaFree(d_image);
+  rgb2gray<<<(int)(height*width)/1024,1024>>>(rgb_image, 
+		    gray_image,
+		    height*width);
+                    
+  // Copy grayscale device buffer to host
+  cudaMemcpy(output.data, gray_image, height*width*sizeof(unsigned char), cudaMemcpyDeviceToHost);
+
+  // Display grayscale converted image
+  cv::namedWindow("Original", cv::WINDOW_AUTOSIZE);
+  cv::imshow("Original", output);
+  cv::waitKey(0);
+
+  cudaFree(rgb_image);
   return 0;
 }
